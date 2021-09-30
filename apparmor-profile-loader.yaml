@@ -92,7 +92,7 @@ spec:
         - --
         - /bin/sh
         - -c
-        - apparmor_parser -v /etc/apparmor.d/local/apparmor-profile-loader
+        - apparmor_parser -vr /etc/apparmor.d/local/apparmor-profile-loader
         securityContext:
           privileged: true
       - name: node-taint-remover
