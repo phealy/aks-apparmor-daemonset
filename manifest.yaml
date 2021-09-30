@@ -1,0 +1,159 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apparmor-loader
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - patch
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apparmor-loader
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apparmor-loader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: apparmor-loader
+subjects:
+- kind: ServiceAccount
+  name: apparmor-loader
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: apparmor-profiles
+data:
+  deny-write.profile: |
+    #include <tunables/global>
+    profile k8s-apparmor-example-deny-write flags=(attach_disconnected) {
+      #include <abstractions/base>
+
+      file,
+      # Deny all file writes.
+      deny /** w,
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: apparmor-scripts
+data:
+  untaint.sh: |
+    TAINTS=$(kubectl get node $NODE_NAME -o jsonpath='{.spec.taints[?(@.key=="WaitingForAppArmorProfiles")]}')
+    if [ ! -z "$TAINTS" ]; then
+      echo "Removing node taint..."
+      kubectl taint node $NODE_NAME WaitingForAppArmorProfiles=true:NoSchedule-
+    else
+      echo "Node already untainted."
+    fi
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: apparmor-loader
+  namespace: kube-system
+  labels:
+    k8s-app: apparmor-loader
+spec:
+  selector:
+    matchLabels:
+      name: apparmor-loader
+  template:
+    metadata:
+      labels:
+        name: apparmor-loader
+    spec:
+      automountServiceAccountToken: true
+      tolerations:
+      - key: WaitingForAppArmorProfiles
+        operator: Exists
+        effect: NoSchedule
+      initContainers:
+      - name: apparmor-profiles-copy
+        image: mcr.microsoft.com/aks/fundamental/base-ubuntu:v0.0.11
+        command:
+        - /bin/sh
+        - -c
+        - mkdir -p /dst/apparmor-loader; cp -v /src/* /dst/apparmor-loader/
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: apparmor-profiles
+          mountPath: /src
+          readOnly: true
+        - name: host-apparmord-local
+          mountPath: /dst
+          readOnly: false
+      - name: apparmor-profiles-load
+        image: mcr.microsoft.com/aks/fundamental/base-ubuntu:v0.0.11
+        command:
+        - nsenter
+        - --target
+        - "1"
+        - --mount
+        - --
+        - /bin/sh
+        - -c
+        - apparmor_parser -v /etc/apparmor.d/local/apparmor-loader
+        securityContext:
+          privileged: true
+      - name: node-taint-remover
+        image: mcr.microsoft.com/oss/kubernetes/kubectl:v1.21.5
+        command:
+        - /bin/bash
+        - -c
+        - . /scripts/untaint.sh
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            memory: 512Mi
+        volumeMounts:
+        - name: apparmor-scripts
+          mountPath: "/scripts"
+          readOnly: true
+      containers:
+      - name: pause
+        image: mcr.microsoft.com/oss/kubernetes/pause:3.5
+        resources:
+          limits:
+            memory: 16Mi
+          requests:
+            memory: 16Mi
+        securityContext:
+          privileged: false
+      hostNetwork: true
+      hostPID: true
+      serviceAccountName: apparmor-loader
+      terminationGracePeriodSeconds: 0
+      volumes:
+      - name: apparmor-profiles
+        configMap:
+          name: apparmor-profiles
+      - name: apparmor-scripts
+        configMap:
+          name: apparmor-scripts
+      - name: host-apparmord-local
+        hostPath:
+          path: /etc/apparmor.d/local
+          type: Directory
