@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.4.613.9944",
+      "templateHash": "6992347203656136146"
+    }
+  },
+  "parameters": {
+    "sshKey": {
+      "type": "string"
+    },
+    "adminPassword": {
+      "type": "string"
+    }
+  },
+  "functions": [],
+  "resources": [
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2021-05-01",
+      "name": "aks-apparmor",
+      "location": "[resourceGroup().location]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "agentPoolProfiles": [
+          {
+            "name": "system",
+            "mode": "System",
+            "count": 3,
+            "vmSize": "Standard_DS2_v2",
+            "availabilityZones": [
+              "1",
+              "2",
+              "3"
+            ],
+            "nodeTaints": [
+              "CriticalAddonsOnly=true:NoSchedule"
+            ]
+          },
+          {
+            "name": "user",
+            "mode": "User",
+            "count": 3,
+            "vmSize": "Standard_DS2_v2",
+            "availabilityZones": [
+              "1",
+              "2",
+              "3"
+            ],
+            "nodeTaints": [
+              "WaitingForAppArmorProfiles=true:NoSchedule"
+            ]
+          }
+        ],
+        "dnsPrefix": "pahl-apparmor",
+        "linuxProfile": {
+          "adminUsername": "azureuser",
+          "ssh": {
+            "publicKeys": [
+              {
+                "keyData": "[parameters('sshKey')]"
+              }
+            ]
+          }
+        },
+        "windowsProfile": {
+          "adminUsername": "azureuser",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "enableRBAC": true,
+        "networkProfile": {
+          "networkPlugin": "azure",
+          "networkPolicy": "azure",
+          "podCidr": "10.1.0.0/17",
+          "serviceCidr": "10.1.128.0/18",
+          "dnsServiceIP": "10.1.128.10",
+          "dockerBridgeCidr": "10.1.192.1/24",
+          "outboundType": "loadBalancer",
+          "loadBalancerSku": "standard"
+        },
+        "aadProfile": {
+          "managed": true
+        },
+        "servicePrincipalProfile": {
+          "clientId": "msi"
+        }
+      },
+      "sku": {
+        "name": "Basic",
+        "tier": "Paid"
+      }
+    }
+  ]
+}

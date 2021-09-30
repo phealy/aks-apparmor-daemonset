@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: apparmor-loader
+  name: apparmor-profile-loader
 rules:
 - apiGroups:
   - ""
@@ -15,42 +15,25 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: apparmor-loader
+  name: apparmor-profile-loader
   namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: apparmor-loader
+  name: apparmor-profile-loader
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: apparmor-loader
+  name: apparmor-profile-loader
 subjects:
 - kind: ServiceAccount
-  name: apparmor-loader
+  name: apparmor-profile-loader
   namespace: kube-system
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  creationTimestamp: null
-  name: apparmor-profiles
-data:
-  deny-write.profile: |
-    #include <tunables/global>
-    profile k8s-apparmor-example-deny-write flags=(attach_disconnected) {
-      #include <abstractions/base>
-
-      file,
-      # Deny all file writes.
-      deny /** w,
-    }
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  creationTimestamp: null
   name: apparmor-scripts
 data:
   untaint.sh: |
@@ -65,18 +48,18 @@ data:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: apparmor-loader
+  name: apparmor-profile-loader
   namespace: kube-system
   labels:
-    k8s-app: apparmor-loader
+    k8s-app: apparmor-profile-loader
 spec:
   selector:
     matchLabels:
-      name: apparmor-loader
+      name: apparmor-profile-loader
   template:
     metadata:
       labels:
-        name: apparmor-loader
+        name: apparmor-profile-loader
     spec:
       automountServiceAccountToken: true
       tolerations:
@@ -89,7 +72,7 @@ spec:
         command:
         - /bin/sh
         - -c
-        - mkdir -p /dst/apparmor-loader; cp -v /src/* /dst/apparmor-loader/
+        - mkdir -p /dst/apparmor-profile-loader; cp -v /src/* /dst/apparmor-profile-loader/
         securityContext:
           privileged: true
         volumeMounts:
@@ -109,7 +92,7 @@ spec:
         - --
         - /bin/sh
         - -c
-        - apparmor_parser -v /etc/apparmor.d/local/apparmor-loader
+        - apparmor_parser -v /etc/apparmor.d/local/apparmor-profile-loader
         securityContext:
           privileged: true
       - name: node-taint-remover
@@ -144,7 +127,7 @@ spec:
           privileged: false
       hostNetwork: true
       hostPID: true
-      serviceAccountName: apparmor-loader
+      serviceAccountName: apparmor-profile-loader
       terminationGracePeriodSeconds: 0
       volumes:
       - name: apparmor-profiles
