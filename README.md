@@ -12,7 +12,9 @@ This project makes use of [`initContainers`](https://kubernetes.io/docs/concepts
 
 To use this method, the following configuration is required:
 - An [AKS cluster](https://docs.microsoft.com/en-us/azure/aks/) with [a system pool and at least one user pool](https://docs.microsoft.com/en-us/azure/aks/use-multiple-node-pools).
-- [The system pool](https://docs.microsoft.com/en-us/azure/aks/use-system-pools) must have the `CriticalAddonsOnly=true:NoSchedule` taint - note that you can't change nodepool taints after the nodepool is created, so you can [add a second system node pool](https://docs.microsoft.com/en-us/azure/aks/use-system-pools#add-a-dedicated-system-node-pool-to-an-existing-aks-cluster) and then remove the original pool to add the taint in an existing cluster.
+- [The system pool](https://docs.microsoft.com/en-us/azure/aks/use-system-pools) must have the `CriticalAddonsOnly=true:NoSchedule` taint
+  - As is this `DaemonSet` doesn't add the AppArmor profiles to the system node pool; if you want it to, add a toleration for `CriticalAddonsOnly=true:NoSchedule` in the container spec.
+  - Note that you can't change nodepool taints after the nodepool is created, so you can [add a second system node pool](https://docs.microsoft.com/en-us/azure/aks/use-system-pools#add-a-dedicated-system-node-pool-to-an-existing-aks-cluster) and then remove the original pool to add the taint in an existing cluster.
 - [The user pool must have the `WaitingForAppArmorProfiles=true:NoSchedule` taint.](https://docs.microsoft.com/en-us/azure/aks/use-multiple-node-pools#specify-a-taint-label-or-tag-for-a-node-pool)
 
 A template to deploy an example cluster can be found here: [Bicep](cluster.bicep)/[ARM](cluster.json).
